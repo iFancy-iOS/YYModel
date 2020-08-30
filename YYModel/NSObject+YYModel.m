@@ -1104,6 +1104,55 @@ typedef struct {
     void *dictionary; ///< NSDictionary (json)
 } ModelSetContext;
 
+
+// 下划线编码风格: shopList => shop_list
+static inline NSString *yx_underlineStyleString(NSString *string) {
+    if (![string isKindOfClass:[NSString class]] ||
+        string == nil ||
+        string.length == 0) {
+        return string;
+    }
+    
+    NSMutableString *modifyStr = [NSMutableString string];
+    for (NSUInteger i = 0; i < string.length; i++) {
+        unichar c = [string characterAtIndex:i];
+        unichar cLower = tolower(c);
+        if (c == cLower) {
+            [modifyStr appendString:[NSString stringWithFormat:@"%c", cLower]];
+        } else {
+            [modifyStr appendString:@"_"];
+            [modifyStr appendString:[NSString stringWithFormat:@"%c", cLower]];
+        }
+    }
+    return modifyStr;
+}
+
+
+// OC编码风格: shop_list => shopList
+static inline NSString *yx_camelStyleString(NSString *string) {
+    if (![string isKindOfClass:[NSString class]] ||
+        string == nil ||
+        string.length == 0) {
+        return string;
+    }
+    
+    NSMutableString *modifyStr = [NSMutableString string];
+    NSArray *cmps = [string componentsSeparatedByString:@"_"];
+    for (NSUInteger i = 0; i < cmps.count; i++) {
+        NSString *cmp = cmps[i];
+        if (i && cmp.length) {
+            // 首字符大写
+            unichar cUpper = toupper([cmp characterAtIndex:0]);
+            [modifyStr appendString:[NSString stringWithFormat:@"%c",cUpper]];
+            if (cmp.length >= 2) [modifyStr appendString:[cmp substringFromIndex:1]];
+        } else {
+            [modifyStr appendString:cmp];
+        }
+    }
+    return modifyStr;
+}
+
+
 /**
  Apply function for dictionary, to set the key-value pair to model.
  
@@ -1113,8 +1162,12 @@ typedef struct {
  */
 static void ModelSetWithDictionaryFunction(const void *_key, const void *_value, void *_context) {
     ModelSetContext *context = _context;
+    
+    NSString *modifykey = (__bridge id)_key;
+    modifykey = yx_camelStyleString(modifykey);
+    
     __unsafe_unretained _YYModelMeta *meta = (__bridge _YYModelMeta *)(context->modelMeta);
-    __unsafe_unretained _YYModelPropertyMeta *propertyMeta = [meta->_mapper objectForKey:(__bridge id)(_key)];
+    __unsafe_unretained _YYModelPropertyMeta *propertyMeta = [meta->_mapper objectForKey:modifykey];
     __unsafe_unretained id model = (__bridge id)(context->model);
     while (propertyMeta) {
         if (propertyMeta->_setter) {
@@ -1142,7 +1195,8 @@ static void ModelSetWithPropertyMetaArrayFunction(const void *_propertyMeta, voi
     } else if (propertyMeta->_mappedToKeyPath) {
         value = YYValueForKeyPath(dictionary, propertyMeta->_mappedToKeyPath);
     } else {
-        value = [dictionary objectForKey:propertyMeta->_mappedToKey];
+        NSString *modifyKey = yx_underlineStyleString(propertyMeta->_mappedToKey);
+        value = [dictionary objectForKey:modifyKey];
     }
     
     if (value) {
